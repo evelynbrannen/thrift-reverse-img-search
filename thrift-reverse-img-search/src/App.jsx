@@ -160,6 +160,7 @@ export default function App() {
             placeholder={canEmbed ? 'Or search by name' : 'Search by name'}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
             disabled={!searchable}
             autoCorrect="off"
             autoCapitalize="off"
