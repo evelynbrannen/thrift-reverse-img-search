@@ -161,6 +161,10 @@ export default function App() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             disabled={!searchable}
+            autoCorrect="off"
+            autoCapitalize="off"
+            autoComplete="off"
+            spellCheck={false}
           />
           {query && (
             <button className="find__clear" onClick={() => setQuery('')} aria-label="Clear search">
