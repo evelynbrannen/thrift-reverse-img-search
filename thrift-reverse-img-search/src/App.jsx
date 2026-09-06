@@ -80,6 +80,10 @@ export default function App() {
       .slice(0, 48)
   }, [items, query, scores])
   const trimmed = query.trim()
+  const hasCamera =
+    typeof navigator !== 'undefined' &&
+    navigator.maxTouchPoints > 1 &&
+    'capture' in document.createElement('input')
 
   useEffect(() => {
     ; (async () => {
@@ -140,7 +144,7 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>Thrift reverse image search</h1>
+        <h1>Thrift inventory search</h1>
         <p className="count">
           {galleryMissing ? 'No collection loaded yet' : `${items.length} items`}
         </p>
@@ -151,7 +155,28 @@ export default function App() {
       <div className="actions">
         {canEmbed && (
           <button disabled={!ready || busy} onClick={() => searchInput.current.click()}>
-            {busy ? 'Looking...' : 'Check an item'}
+            {busy ? (
+              'Looking...'
+            ) : hasCamera ? (
+              <>
+                <svg className="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M3 8a2 2 0 0 1 2-2h2.5l1.2-1.8A1 1 0 0 1 9.5 4h5a1 1 0 0 1 .8.4L16.5 6H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <circle cx="12" cy="12.5" r="3.5" />
+                </svg>
+                Take a photo
+              </>
+            ) : (
+              <>
+                <svg className="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 15V4" />
+                  <path d="M8 8l4-4 4 4" />
+                  <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+                </svg>
+                Upload a photo
+              </>
+            )}
           </button>
         )}
         <div className={canEmbed ? 'find' : 'find find--solo'}>
@@ -179,7 +204,7 @@ export default function App() {
         ref={searchInput}
         type="file"
         accept="image/*"
-        capture="environment"
+        {...(hasCamera ? { capture: 'environment' } : {})}
         hidden
         onChange={(e) => {
           handleSearch(e.target.files[0])
