@@ -145,6 +145,14 @@
   letter-spacing: -0.01em;
 }
 
+.hit .place {
+  font-size: var(--step--1);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .hit .label {
   color: var(--ink-soft);
   font-size: var(--step--1);
@@ -152,21 +160,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.hit .link {
-  align-self: start;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: var(--step--1);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-}
-
-.hit .link:hover { color: var(--ink); }
 
 /* ---- empty state ---- */
 

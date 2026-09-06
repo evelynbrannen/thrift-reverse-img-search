@@ -1,0 +1,51 @@
+.gate {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 1.25rem;
+}
+
+.gate__panel {
+  width: 100%;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.gate h1 {
+  margin: 0;
+  font-size: var(--step-1);
+  font-weight: 500;
+}
+
+.gate input {
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  letter-spacing: 0.3em;
+}
+
+.gate input:focus { border-color: var(--accent); }
+
+.gate button {
+  padding: 0.65rem 1.15rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.gate button:disabled { opacity: 0.35; cursor: default; }
+
+.gate__error {
+  margin: 0;
+  color: #8a2f3d;
+  font-size: var(--step--1);
+}
