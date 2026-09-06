@@ -1,5 +1,7 @@
 import { l2normalize } from './embed'
 
+const B = import.meta.env.BASE_URL
+
 function f16ToF32(h) {
     const s = (h & 0x8000) >> 15
     const e = (h & 0x7c00) >> 10
@@ -7,6 +9,14 @@ function f16ToF32(h) {
     if (e === 0) return (s ? -1 : 1) * Math.pow(2, -14) * (f / 1024)
     if (e === 0x1f) return f ? NaN : (s ? -Infinity : Infinity)
     return (s ? -1 : 1) * Math.pow(2, e - 15) * (1 + f / 1024)
+}
+
+export class MissingAssetError extends Error {
+    constructor(url) {
+        super(`Missing ${url}. Run the update script to build the collection index.`)
+        this.name = 'MissingAssetError'
+        this.missing = true
+    }
 }
 
 async function fetchJSON(url) {
@@ -18,26 +28,19 @@ async function fetchJSON(url) {
     return res.json()
 }
 
-export class MissingAssetError extends Error {
-    constructor(url) {
-        super(`Missing ${url} in public/. Run make_thumbs.py and embed.py, then copy the outputs.`)
-        this.name = 'MissingAssetError'
-        this.missing = true
-    }
-}
-
 export async function loadGallery() {
     let manifest, meta, buf
     try {
         ;[manifest, meta] = await Promise.all([
-            fetchJSON('/manifest.json'),
-            fetchJSON('/embed_meta.json'),
+            fetchJSON(`${B}manifest.json`),
+            fetchJSON(`${B}embed_meta.json`),
         ])
-        const res = await fetch('/embeddings.f16.bin')
+        const res = await fetch(`${B}embeddings.f16.bin`)
+        if (!res.ok) throw new MissingAssetError(`${B}embeddings.f16.bin`)
         buf = await res.arrayBuffer()
-        // Vite serves index.html for missing paths, so check the actual bytes.
+        // A missing path can return index.html, so check the actual bytes.
         if (new Uint8Array(buf.slice(0, 1))[0] === 0x3c) {
-            throw new MissingAssetError('/embeddings.f16.bin')
+            throw new MissingAssetError(`${B}embeddings.f16.bin`)
         }
     } catch (e) {
         if (e.missing) return { items: [], dim: 0, missing: true, reason: e.message }
@@ -49,7 +52,7 @@ export async function loadGallery() {
     if (u16.length !== count * dim) {
         throw new Error(
             `Embedding size mismatch: file has ${u16.length} values, manifest expects ${count} × ${dim}. ` +
-            `Re-run embed.py so the two stay in sync.`
+            `Re-run the update script so the two stay in sync.`
         )
     }
 
@@ -58,6 +61,10 @@ export async function loadGallery() {
         for (let j = 0; j < dim; j++) v[j] = f16ToF32(u16[i * dim + j])
         return {
             id: rec.id,
+            name: rec.name || rec.source,
+            category: rec.category || '',
+            thumb: B + rec.thumb,
+            vec: l2normalize(v),
         }
     })
 
