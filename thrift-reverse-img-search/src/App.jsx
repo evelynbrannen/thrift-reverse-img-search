@@ -30,6 +30,7 @@ function textSearch(items, query, limit = 48) {
 }
 
 function ResultGrid({ entries }) {
+  if (!entries?.length) return null
   return (
     <div className="grid">
       {entries.map(({ item, score }) => (
@@ -113,16 +114,17 @@ export default function App() {
   async function handleSearch(file) {
     if (!file) return
     setBusy(true)
+    setPreview(null)
     setResults(null)
     setScores(null)
     try {
       const img = await fileToImage(file)
       setPreview(makeThumbDataURL(img, 320))
       const vec = await embedImage(img)
-      const scoreMap = scoreAll(vec, items)
-      setScores(scoreMap)
-      setResults(search(vec, items, 20))
+      setScores(scoreAll(vec, items))
+      setResults(search(vec, items, 12))
     } catch (e) {
+      setPreview(null)
       setStatus(`Error: ${e.message}`)
     } finally {
       setBusy(false)
