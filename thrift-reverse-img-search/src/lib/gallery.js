@@ -80,3 +80,13 @@ export function search(query, items, k = 12) {
     scored.sort((a, b) => b.score - a.score)
     return scored.slice(0, k)
 }
+
+export function scoreAll(query, items) {
+  const map = new Map()
+  for (const it of items) {
+    let s = 0
+    for (let j = 0; j < query.length; j++) s += query[j] * it.vec[j]
+    map.set(it.id, s)
+  }
+  return map
+}

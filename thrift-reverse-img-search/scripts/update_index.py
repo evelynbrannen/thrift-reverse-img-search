@@ -54,7 +54,10 @@ def main():
     for p in SRC.rglob("*"):
         if p.suffix.lower() not in EXTS or p.name.startswith("."):
             continue
-        current[str(p.relative_to(SRC))] = content_key(p)
+        rel = p.relative_to(SRC)
+        if any(part.startswith("~") for part in rel.parts[:-1]):
+            continue
+        current[str(rel)] = content_key(p)
     print(f"{len(current)} images on disk")
 
     # --- what we already have: content key -> (vector, w, h) ---
@@ -148,7 +151,7 @@ def main():
         "dtype": "float16", "pooling": "cls+meanpatch", "normalized": True,
     }))
     print(f"indexed {len(records)} images, pruned {removed} stale thumbs")
-    
+
 
 if __name__ == "__main__":
     main()

@@ -1,11 +1,60 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { loadModel, fileToImage, embedImage, makeThumbDataURL } from './lib/embed'
-import { loadGallery, search } from './lib/gallery'
+import { loadGallery, search, scoreAll } from './lib/gallery'
 import './App.css'
 
 function formatPlace(category) {
   if (!category) return null
   return category.split('/').filter(Boolean).slice(-2).join(' / ')
+}
+
+function normalize(s) {
+  return s
+    .toLowerCase()
+    .replace(/[\u2018\u2019\u201c\u201d]/g, "'")  // curly quotes
+    .replace(/\s+/g, ' ')
+}
+
+function textSearch(items, query, limit = 48) {
+  const terms = normalize(query).split(' ').filter(Boolean)
+  if (!terms.length) return []
+  const out = []
+  for (const item of items) {
+    const hay = normalize(`${item.name} ${item.category}`)
+    if (terms.every((t) => hay.includes(t))) {
+      out.push({ item })
+      if (out.length >= limit) break
+    }
+  }
+  return out
+}
+
+function ResultGrid({ entries }) {
+  return (
+    <div className="grid">
+      {entries.map(({ item, score }) => (
+        <figure key={item.id} className="hit">
+          <img src={item.thumb} alt={item.name} loading="lazy" />
+          <figcaption>
+            {score !== undefined && (
+              <>
+                <div className="meter">
+                  <span style={{ width: `${Math.max(0, score) * 100}%` }} />
+                </div>
+                <span className="score">{score.toFixed(3)}</span>
+              </>
+            )}
+            {item.category && (
+              <span className="place" title={item.category}>
+                {formatPlace(item.category)}
+              </span>
+            )}
+            <span className="label" title={item.name}>{item.name}</span>
+          </figcaption>
+        </figure>
+      ))}
+    </div>
+  )
 }
 
 export default function App() {
@@ -15,12 +64,23 @@ export default function App() {
   const [galleryMissing, setGalleryMissing] = useState(false)
   const [preview, setPreview] = useState(null)
   const [results, setResults] = useState(null)
+  const [scores, setScores] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [query, setQuery] = useState('')
 
   const searchInput = useRef(null)
+  const textResults = useMemo(() => {
+    const matches = textSearch(items, query, scores ? Infinity : 48)
+    if (!scores) return matches
+    return matches
+      .map(({ item }) => ({ item, score: scores.get(item.id) ?? 0 }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 48)
+  }, [items, query, scores])
+  const trimmed = query.trim()
 
   useEffect(() => {
-    ;(async () => {
+    ; (async () => {
       try {
         const { items, missing, reason } = await loadGallery()
         setItems(items)
@@ -43,16 +103,25 @@ export default function App() {
     if (!file) return
     setBusy(true)
     setResults(null)
+    setScores(null)
     try {
       const img = await fileToImage(file)
       setPreview(makeThumbDataURL(img, 320))
       const vec = await embedImage(img)
-      setResults(search(vec, items, 12))
+      const scoreMap = scoreAll(vec, items)
+      setScores(scoreMap)
+      setResults(search(vec, items, 20))
     } catch (e) {
       setStatus(`Error: ${e.message}`)
     } finally {
       setBusy(false)
     }
+  }
+
+  function clearPhoto() {
+    setPreview(null)
+    setResults(null)
+    setScores(null)
   }
 
   return (
@@ -68,8 +137,22 @@ export default function App() {
 
       <div className="actions">
         <button disabled={!ready || busy} onClick={() => searchInput.current.click()}>
-          {busy ? 'Looking...' : 'Check an item'}
+          {busy ? 'Looking...' : 'Take a photo'}
         </button>
+        <div className="find">
+          <input
+            type="search"
+            placeholder="Or search by name"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            disabled={!items.length}
+          />
+          {query && (
+            <button className="find__clear" onClick={() => setQuery('')} aria-label="Clear search">
+              ×
+            </button>
+          )}
+        </div>
       </div>
 
       <input
@@ -84,43 +167,48 @@ export default function App() {
         }}
       />
 
-      {!results && !busy && (
-        <p className="empty">
-          Photograph something on the shelf and this will show you the closest
-          things already in the collection.
-        </p>
-      )}
-
-      {results && (
-        <div className="workspace">
-          <section className="query">
-            <h2>What you photographed</h2>
-            <img src={preview} alt="The item you photographed" />
-          </section>
+      {preview || trimmed || results ? (
+        <div className={preview ? 'workspace' : 'workspace workspace--full'}>
+          {preview && (
+            <section className="query">
+              <div className="query__head">
+                <h2>What you photographed</h2>
+                <button className="reset" onClick={clearPhoto}>Clear</button>
+              </div>
+              <img src={preview} alt="The item you photographed" />
+            </section>
+          )}
 
           <section className="matches">
-            <h2>Closest things you own</h2>
-            <div className="grid">
-              {results.map(({ item, score }) => (
-                <figure key={item.id} className="hit">
-                  <img src={item.thumb} alt={item.name} loading="lazy" />
-                  <figcaption>
-                    <div className="meter">
-                      <span style={{ width: `${Math.max(0, score) * 100}%` }} />
-                    </div>
-                    <span className="score">{score.toFixed(3)}</span>
-                    {item.category && (
-                      <span className="place" title={item.category}>
-                        {formatPlace(item.category)}
-                      </span>
-                    )}
-                    <span className="label" title={item.name}>{item.name}</span>
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
+            {trimmed ? (
+              <>
+                <h2>
+                  {textResults.length === 0
+                    ? `Nothing matching “${trimmed}”`
+                    : scores
+                      ? `Best visual matches among ${textResults.length} named “${trimmed}”`
+                      : `${textResults.length}${textResults.length === 48 ? '+' : ''} matching “${trimmed}”`}
+                  {scores && (
+                    <button className="reset" onClick={clearPhoto}>Ignore photo</button>
+                  )}
+                </h2>
+                <ResultGrid entries={textResults} />
+              </>
+            ) : (
+              <>
+                <h2>Closest things you own</h2>
+                <ResultGrid entries={results} />
+              </>
+            )}
           </section>
         </div>
+      ) : (
+        !busy && (
+          <p className="empty">
+            Photograph something on the shelf and this will show you the closest
+            things already in the collection. Or search by name above.
+          </p>
+        )
       )}
     </div>
   )
