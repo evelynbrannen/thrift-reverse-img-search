@@ -1,1 +1,1 @@
-{"model": "facebook/dinov2-small", "count": 3236, "dim": 768, "dtype": "float16", "pooling": "cls+meanpatch", "normalized": true}
+{"model": "facebook/dinov2-small", "count": 2457, "dim": 768, "dtype": "float16", "pooling": "cls+meanpatch", "normalized": true}
