@@ -241,6 +241,8 @@
   color: var(--ink);
 }
 
+.find--solo { max-width: none; }
+
 .workspace--full { grid-template-columns: 1fr; }
 
 /* ---- empty state ---- */

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
-import { loadModel, fileToImage, embedImage, makeThumbDataURL } from './lib/embed'
+import { loadModel, fileToImage, embedImage, makeThumbDataURL, hasSimd } from './lib/embed'
 import { loadGallery, search, scoreAll } from './lib/gallery'
 import './App.css'
 
@@ -67,6 +67,7 @@ export default function App() {
   const [scores, setScores] = useState(null)
   const [busy, setBusy] = useState(false)
   const [query, setQuery] = useState('')
+  const [canEmbed, setCanEmbed] = useState(true)
 
   const searchInput = useRef(null)
   const textResults = useMemo(() => {
@@ -85,6 +86,13 @@ export default function App() {
         const { items, missing, reason } = await loadGallery()
         setItems(items)
         setGalleryMissing(!!missing)
+
+        if (!hasSimd()) {
+          setCanEmbed(false)
+          setStatus('Photo search needs a newer device. You can still search by name.')
+          return
+        }
+
         setStatus(missing ? reason : 'Loading model (first time only, ~90 MB)...')
         await loadModel((p) => {
           if (p.status === 'progress' && p.total) {
@@ -94,10 +102,13 @@ export default function App() {
         setReady(true)
         if (!missing) setStatus('')
       } catch (e) {
-        setStatus(`Error: ${e.message}`)
+        setCanEmbed(false)
+        setStatus('Photo search is unavailable on this device. You can still search by name.')
       }
     })()
   }, [])
+
+  const searchable = items.length > 0
 
   async function handleSearch(file) {
     if (!file) return
@@ -136,16 +147,18 @@ export default function App() {
       {status && <p className="status">{status}</p>}
 
       <div className="actions">
-        <button disabled={!ready || busy} onClick={() => searchInput.current.click()}>
-          {busy ? 'Looking...' : 'Take a photo'}
-        </button>
-        <div className="find">
+        {canEmbed && (
+          <button disabled={!ready || busy} onClick={() => searchInput.current.click()}>
+            {busy ? 'Looking...' : 'Check an item'}
+          </button>
+        )}
+        <div className={canEmbed ? 'find' : 'find find--solo'}>
           <input
             type="search"
-            placeholder="Or search by name"
+            placeholder={canEmbed ? 'Or search by name' : 'Search by name'}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            disabled={!items.length}
+            disabled={!searchable}
           />
           {query && (
             <button className="find__clear" onClick={() => setQuery('')} aria-label="Clear search">
@@ -205,8 +218,9 @@ export default function App() {
       ) : (
         !busy && (
           <p className="empty">
-            Photograph something on the shelf and this will show you the closest
-            things already in the collection. Or search by name above.
+            {canEmbed
+              ? 'Photograph something on the shelf and this will show you the closest things already in the collection. Or search by name above.'
+              : 'Search the collection by name or category above.'}
           </p>
         )
       )}
