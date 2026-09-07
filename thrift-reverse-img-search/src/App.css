@@ -278,4 +278,5 @@
 
   .actions > button { flex: 1 1 100%; }
   .find { flex: 1 1 100%; max-width: none; }
+  .find input { font-size: 16px; }
 }
