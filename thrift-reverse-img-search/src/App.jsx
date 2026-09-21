@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { loadModel, fileToImage, embedImage, makeThumbDataURL, hasSimd } from './lib/embed'
-import { loadGallery, search, scoreAll } from './lib/gallery'
+import { loadGallery, scoreAll } from './lib/gallery'
 import './App.css'
+
+const PAGE = 48
 
 function formatPlace(category) {
   if (!category) return null
@@ -15,18 +17,12 @@ function normalize(s) {
     .replace(/\s+/g, ' ')
 }
 
-function textSearch(items, query, limit = 48) {
+function textSearch(items, query) {
   const terms = normalize(query).split(' ').filter(Boolean)
   if (!terms.length) return []
-  const out = []
-  for (const item of items) {
-    const hay = normalize(`${item.name} ${item.category}`)
-    if (terms.every((t) => hay.includes(t))) {
-      out.push({ item })
-      if (out.length >= limit) break
-    }
-  }
-  return out
+  return items
+    .filter((item) => terms.every((t) => item.hay.includes(t)))
+    .map((item) => ({ item }))
 }
 
 function ResultGrid({ entries }) {
@@ -58,28 +54,57 @@ function ResultGrid({ entries }) {
   )
 }
 
+function LoadMore({ onVisible }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([entry]) => entry.isIntersecting && onVisible(),
+      { rootMargin: '600px' }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [onVisible])
+  return <div ref={ref} aria-hidden="true" style={{ height: 1 }} />
+}
+
 export default function App() {
   const [status, setStatus] = useState('Loading collection...')
   const [ready, setReady] = useState(false)
   const [items, setItems] = useState([])
   const [galleryMissing, setGalleryMissing] = useState(false)
   const [preview, setPreview] = useState(null)
-  const [results, setResults] = useState(null)
   const [scores, setScores] = useState(null)
   const [busy, setBusy] = useState(false)
   const [query, setQuery] = useState('')
   const [canEmbed, setCanEmbed] = useState(true)
 
   const searchInput = useRef(null)
-  const textResults = useMemo(() => {
-    const matches = textSearch(items, query, scores ? Infinity : 48)
+  const trimmed = query.trim()
+
+  const textAll = useMemo(() => {
+    const matches = textSearch(items, trimmed)
     if (!scores) return matches
     return matches
       .map(({ item }) => ({ item, score: scores.get(item.id) ?? 0 }))
       .sort((a, b) => b.score - a.score)
-      .slice(0, 48)
-  }, [items, query, scores])
-  const trimmed = query.trim()
+  }, [items, trimmed, scores])
+
+  const imageAll = useMemo(() => {
+    if (!scores) return []
+    return items
+      .map((item) => ({ item, score: scores.get(item.id) ?? 0 }))
+      .sort((a, b) => b.score - a.score)
+  }, [items, scores])
+
+  const [visible, setVisible] = useState(PAGE)
+  useEffect(() => setVisible(PAGE), [trimmed, scores])
+
+  const activeList = trimmed ? textAll : imageAll
+  const shown = activeList.slice(0, visible)
+  const hasMore = visible < activeList.length
+  const loadMore = useCallback(() => setVisible((v) => v + PAGE), [])
   const hasCamera =
     typeof navigator !== 'undefined' &&
     navigator.maxTouchPoints > 1 &&
@@ -119,14 +144,12 @@ export default function App() {
     if (!file) return
     setBusy(true)
     setPreview(null)
-    setResults(null)
     setScores(null)
     try {
       const img = await fileToImage(file)
       setPreview(makeThumbDataURL(img, 320))
       const vec = await embedImage(img)
       setScores(scoreAll(vec, items))
-      setResults(search(vec, items, 12))
     } catch (e) {
       setPreview(null)
       setStatus(`Error: ${e.message}`)
@@ -137,7 +160,6 @@ export default function App() {
 
   function clearPhoto() {
     setPreview(null)
-    setResults(null)
     setScores(null)
   }
 
@@ -212,7 +234,7 @@ export default function App() {
         }}
       />
 
-      {preview || trimmed || results ? (
+      {preview || trimmed ? (
         <div className={preview ? 'workspace' : 'workspace workspace--full'}>
           {preview && (
             <section className="query">
@@ -225,26 +247,20 @@ export default function App() {
           )}
 
           <section className="matches">
-            {trimmed ? (
-              <>
-                <h2>
-                  {textResults.length === 0
-                    ? `Nothing matching “${trimmed}”`
-                    : scores
-                      ? `Best visual matches among ${textResults.length} named “${trimmed}”`
-                      : `${textResults.length}${textResults.length === 48 ? '+' : ''} matching “${trimmed}”`}
-                  {scores && (
-                    <button className="reset" onClick={clearPhoto}>Ignore photo</button>
-                  )}
-                </h2>
-                <ResultGrid entries={textResults} />
-              </>
-            ) : (
-              <>
-                <h2>Closest things you own</h2>
-                <ResultGrid entries={results} />
-              </>
-            )}
+            <h2>
+              {trimmed
+                ? textAll.length === 0
+                  ? `Nothing matching “${trimmed}”`
+                  : scores
+                    ? `Best visual matches among ${textAll.length} named “${trimmed}”`
+                    : `${textAll.length} matching “${trimmed}”`
+                : 'Closest things you own'}
+              {trimmed && scores && (
+                <button className="reset" onClick={clearPhoto}>Ignore photo</button>
+              )}
+            </h2>
+            <ResultGrid entries={shown} />
+            {hasMore && <LoadMore key={`${trimmed}-${visible}`} onVisible={loadMore} />}
           </section>
         </div>
       ) : (

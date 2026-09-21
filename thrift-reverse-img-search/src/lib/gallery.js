@@ -59,10 +59,16 @@ export async function loadGallery() {
     const items = manifest.map((rec, i) => {
         const v = new Float32Array(dim)
         for (let j = 0; j < dim; j++) v[j] = f16ToF32(u16[i * dim + j])
+        const name = rec.name || rec.source
+        const category = rec.category || ''
         return {
             id: rec.id,
-            name: rec.name || rec.source,
-            category: rec.category || '',
+            name,
+            category,
+            hay: `${name} ${category}`
+                .toLowerCase()
+                .replace(/[\u2018\u2019\u201c\u201d]/g, "'")
+                .replace(/\s+/g, ' '),
             thumb: B + rec.thumb,
             vec: l2normalize(v),
         }
